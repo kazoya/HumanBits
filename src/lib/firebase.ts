@@ -21,7 +21,20 @@ const firebaseConfig = {
 
 let analyticsPromise: Promise<Analytics | null> | null = null;
 
+export function hasFirebaseConfig() {
+  return Boolean(
+    firebaseConfig.apiKey &&
+      firebaseConfig.authDomain &&
+      firebaseConfig.projectId &&
+      firebaseConfig.appId,
+  );
+}
+
 export function getFirebaseApp(): FirebaseApp {
+  if (!hasFirebaseConfig()) {
+    throw new Error("Firebase client config is missing.");
+  }
+
   if (!getApps().length) {
     return initializeApp(firebaseConfig);
   }
@@ -34,6 +47,10 @@ export function getFirebaseAuth(): Auth {
 }
 
 export function getFirebaseAnalytics() {
+  if (!hasFirebaseConfig()) {
+    return Promise.resolve(null);
+  }
+
   if (!analyticsPromise) {
     analyticsPromise = isSupported().then((supported) =>
       supported ? getAnalytics(getFirebaseApp()) : null,

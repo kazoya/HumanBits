@@ -7,6 +7,7 @@ import type { User } from "firebase/auth";
 import {
   getFirebaseAnalytics,
   getFirebaseAuth,
+  hasFirebaseConfig,
   signInWithGoogle,
   signOutOfGoogle,
 } from "@/lib/firebase";
@@ -118,14 +119,21 @@ export default function Home() {
   const [authError, setAuthError] = useState<string | null>(null);
 
   const activeExperiment = experiments.find((item) => item.id === activeId) ?? experiments[0];
+  const isFirebaseReady = hasFirebaseConfig();
 
   useEffect(() => {
+    if (!isFirebaseReady) {
+      return;
+    }
+
+    let unsubscribe = () => {};
+
     const auth = getFirebaseAuth();
-    const unsubscribe = auth.onAuthStateChanged((currentUser) => setUser(currentUser));
+    unsubscribe = auth.onAuthStateChanged((currentUser) => setUser(currentUser));
     void getFirebaseAnalytics();
 
     return unsubscribe;
-  }, []);
+  }, [isFirebaseReady]);
 
   useEffect(() => {
     const supabase = getSupabaseBrowserClient();
@@ -163,6 +171,10 @@ export default function Home() {
     setAuthError(null);
 
     try {
+      if (!isFirebaseReady) {
+        throw new Error("Firebase is not configured on this deployment yet.");
+      }
+
       await signInWithGoogle();
     } catch (error) {
       setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
@@ -263,6 +275,11 @@ export default function Home() {
               </button>
             )}
           </nav>
+          {!isFirebaseReady ? (
+            <p className="mt-3 text-sm text-[#b93834]">
+              Firebase is not configured on this deployment yet.
+            </p>
+          ) : null}
           {authError ? <p className="mt-3 text-sm text-[#b93834]">{authError}</p> : null}
 
           <div className="grid flex-1 gap-5 py-5 xl:grid-cols-[1fr_360px]">
