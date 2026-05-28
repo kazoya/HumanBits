@@ -89,7 +89,9 @@ const reactionCopy: Record<
 const supportLinks = [
   {
     label: "Buy Me a Coffee",
-    href: process.env.NEXT_PUBLIC_BUY_ME_A_COFFEE_URL ?? "https://www.buymeacoffee.com/",
+    href:
+      process.env.NEXT_PUBLIC_BUY_ME_A_COFFEE_URL ??
+      "https://www.buymeacoffee.com/Asrawi612",
   },
   {
     label: "Ko-fi",
