@@ -1,9 +1,27 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
+import type { User } from "firebase/auth";
+import {
+  getFirebaseAnalytics,
+  getFirebaseAuth,
+  signInWithGoogle,
+  signOutOfGoogle,
+} from "@/lib/firebase";
+import { getSupabaseBrowserClient } from "@/lib/supabase";
 
 type Reaction = "agree" | "skip" | "laugh" | "reflect";
+
+type SentimentResult = {
+  tone: string;
+  sentiment: string;
+  intensity: number;
+  tags: string[];
+  summary: string;
+  safetyNote: string;
+};
 
 const experiments = [
   {
@@ -68,20 +86,118 @@ const reactionCopy: Record<
   },
 };
 
+const supportLinks = [
+  {
+    label: "Buy Me a Coffee",
+    href: process.env.NEXT_PUBLIC_BUY_ME_A_COFFEE_URL ?? "https://www.buymeacoffee.com/",
+  },
+  {
+    label: "Ko-fi",
+    href: process.env.NEXT_PUBLIC_KOFI_URL ?? "https://ko-fi.com/",
+  },
+  {
+    label: "Patreon",
+    href: process.env.NEXT_PUBLIC_PATREON_URL ?? "https://www.patreon.com/",
+  },
+];
+
 export default function Home() {
   const [activeId, setActiveId] = useState(experiments[0].id);
   const [reaction, setReaction] = useState<Reaction>("reflect");
+  const [user, setUser] = useState<User | null>(null);
+  const [roomCount, setRoomCount] = useState(18);
+  const [roomFeed, setRoomFeed] = useState<string[]>([
+    "Someone in Amman picked: خلتني أفكر",
+    "Guest from Dubai joined عشر قروش",
+  ]);
+  const [note, setNote] = useState("بصراحة الفكرة بسيطة لكنها بتوخز الضمير شوي.");
+  const [sentiment, setSentiment] = useState<SentimentResult | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+
   const activeExperiment = experiments.find((item) => item.id === activeId) ?? experiments[0];
 
+  useEffect(() => {
+    const auth = getFirebaseAuth();
+    const unsubscribe = auth.onAuthStateChanged((currentUser) => setUser(currentUser));
+    void getFirebaseAnalytics();
+
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    const supabase = getSupabaseBrowserClient();
+    let channel: RealtimeChannel | null = null;
+
+    if (supabase) {
+      channel = supabase.channel(`live-experiment:${activeId}`);
+      channel
+        .on("broadcast", { event: "reaction" }, ({ payload }) => {
+          const label = String(payload?.label ?? "joined");
+          setRoomFeed((items) => [`Live room: ${label}`, ...items].slice(0, 5));
+          setRoomCount((count) => count + 1);
+        })
+        .subscribe();
+    }
+
+    return () => {
+      if (channel) {
+        void supabase?.removeChannel(channel);
+      }
+    };
+  }, [activeId]);
+
   const stats = useMemo(() => {
-    const seed = activeExperiment.responses + activeExperiment.agree + reaction.length;
+    const seed = activeExperiment.responses + activeExperiment.agree + reaction.length + roomCount;
     return {
       total: activeExperiment.responses + seed * 2,
       agree: Math.min(94, activeExperiment.agree + (reaction === "agree" ? 8 : 0)),
       countries: 18 + (seed % 9),
-      sentiment: reactionCopy[reaction].tone,
+      sentiment: sentiment?.tone ?? reactionCopy[reaction].tone,
     };
-  }, [activeExperiment, reaction]);
+  }, [activeExperiment, reaction, roomCount, sentiment]);
+
+  async function handleGoogleLogin() {
+    setAuthError(null);
+
+    try {
+      await signInWithGoogle();
+    } catch (error) {
+      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
+    }
+  }
+
+  async function handleReaction(nextReaction: Reaction) {
+    setReaction(nextReaction);
+    setRoomFeed((items) => [`You picked: ${reactionCopy[nextReaction].label}`, ...items].slice(0, 5));
+    setRoomCount((count) => count + 1);
+
+    const supabase = getSupabaseBrowserClient();
+    if (supabase) {
+      await supabase.channel(`live-experiment:${activeId}`).send({
+        type: "broadcast",
+        event: "reaction",
+        payload: { label: reactionCopy[nextReaction].label, experimentId: activeId },
+      });
+    }
+  }
+
+  async function analyzeReaction() {
+    setIsAnalyzing(true);
+    setSentiment(null);
+
+    try {
+      const response = await fetch("/api/sentiment", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: note, experimentId: activeId }),
+      });
+      const data = (await response.json()) as SentimentResult;
+      setSentiment(data);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  }
 
   return (
     <main className="min-h-screen bg-[#f7f4ea] text-[#182027]">
@@ -111,9 +227,9 @@ export default function Home() {
           </div>
 
           <div className="grid gap-3 text-sm text-[#fffaf0]/78 sm:grid-cols-3">
-            <p>Anonymous-first reactions.</p>
-            <p>Playful AI analysis, not moral judgment.</p>
-            <p>Built for Vercel, Neon, and Google OAuth later.</p>
+            <p>Firebase Google login.</p>
+            <p>OpenAI-backed sentiment endpoint.</p>
+            <p>Supabase live rooms when env vars are present.</p>
           </div>
         </aside>
 
@@ -129,10 +245,23 @@ export default function Home() {
                 </button>
               ))}
             </div>
-            <button className="h-10 rounded-md bg-[#182027] px-4 text-sm font-semibold text-[#fffaf0] transition hover:bg-[#2a373f]">
-              Google Login
-            </button>
+            {user ? (
+              <button
+                onClick={() => signOutOfGoogle()}
+                className="min-h-10 rounded-md bg-[#182027] px-4 text-sm font-semibold text-[#fffaf0] transition hover:bg-[#2a373f]"
+              >
+                {user.displayName ?? "Signed in"} · Sign out
+              </button>
+            ) : (
+              <button
+                onClick={handleGoogleLogin}
+                className="min-h-10 rounded-md bg-[#182027] px-4 text-sm font-semibold text-[#fffaf0] transition hover:bg-[#2a373f]"
+              >
+                Google Login
+              </button>
+            )}
           </nav>
+          {authError ? <p className="mt-3 text-sm text-[#b93834]">{authError}</p> : null}
 
           <div className="grid flex-1 gap-5 py-5 xl:grid-cols-[1fr_360px]">
             <div className="flex flex-col gap-5">
@@ -155,7 +284,7 @@ export default function Home() {
                   {(Object.keys(reactionCopy) as Reaction[]).map((key) => (
                     <button
                       key={key}
-                      onClick={() => setReaction(key)}
+                      onClick={() => handleReaction(key)}
                       className={`min-h-12 rounded-md border px-3 text-sm font-semibold transition ${
                         reaction === key
                           ? "border-[#eb5954] bg-[#eb5954] text-white"
@@ -190,20 +319,38 @@ export default function Home() {
 
               <section className="grid gap-4 md:grid-cols-2">
                 <div className="rounded-lg border border-[#182027]/12 bg-[#fffdf6] p-5">
-                  <h3 className="text-xl font-semibold">AI Reaction Analyzer</h3>
-                  <p className="mt-3 leading-7 text-[#4a5560]">{reactionCopy[reaction].analyzer}</p>
+                  <h3 className="text-xl font-semibold">Real AI sentiment analysis</h3>
+                  <textarea
+                    value={note}
+                    onChange={(event) => setNote(event.target.value)}
+                    className="mt-4 min-h-28 w-full rounded-md border border-[#182027]/15 bg-white p-3 text-right leading-7 outline-none focus:border-[#2a916e]"
+                  />
+                  <button
+                    onClick={analyzeReaction}
+                    disabled={isAnalyzing}
+                    className="mt-3 min-h-11 rounded-md bg-[#2a916e] px-4 text-sm font-semibold text-white transition hover:bg-[#237b5d] disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {isAnalyzing ? "Analyzing..." : "Analyze reaction"}
+                  </button>
+                  <p className="mt-3 leading-7 text-[#4a5560]">
+                    {sentiment?.summary ?? reactionCopy[reaction].analyzer}
+                  </p>
                   <div className="mt-5 rounded-md bg-[#182027] px-4 py-3 font-mono text-sm text-[#fffaf0]">
-                    tone={stats.sentiment}; use=anonymous_statistics
+                    tone={stats.sentiment}; sentiment={sentiment?.sentiment ?? "local"};
+                    intensity={sentiment?.intensity ?? "n/a"}
                   </div>
                 </div>
                 <div className="rounded-lg border border-[#182027]/12 bg-[#fffdf6] p-5">
-                  <h3 className="text-xl font-semibold">Humanity Score</h3>
-                  <p className="mt-3 text-4xl font-semibold text-[#eb5954]">
-                    {reactionCopy[reaction].score}
-                  </p>
-                  <p className="mt-3 leading-7 text-[#4a5560]">
-                    مؤشر ترفيهي للتأمل والمشاركة، وليس تقييمًا أخلاقيًا أو علميًا.
-                  </p>
+                  <h3 className="text-xl font-semibold">Live experiment room</h3>
+                  <p className="mt-3 text-4xl font-semibold text-[#eb5954]">{roomCount}</p>
+                  <p className="mt-2 text-sm text-[#5d6870]">people reacting in this room</p>
+                  <div className="mt-5 space-y-2">
+                    {roomFeed.map((item, index) => (
+                      <p key={`${item}-${index}`} className="rounded-md bg-[#e1f0ec] px-3 py-2 text-sm">
+                        {item}
+                      </p>
+                    ))}
+                  </div>
                 </div>
               </section>
             </div>
@@ -239,15 +386,19 @@ export default function Home() {
               </section>
 
               <section className="rounded-lg border border-[#182027]/12 bg-[#fffdf6] p-5">
-                <h2 className="text-xl font-semibold">Premium later</h2>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {["Deep AI analysis", "Custom themes", "Advanced stats", "Live rooms"].map(
-                    (item) => (
-                      <span key={item} className="rounded-md bg-[#e1f0ec] px-3 py-2 text-sm">
-                        {item}
-                      </span>
-                    ),
-                  )}
+                <h2 className="text-xl font-semibold">Support the lab</h2>
+                <div className="mt-4 grid gap-2">
+                  {supportLinks.map((item) => (
+                    <a
+                      key={item.label}
+                      href={item.href}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-md border border-[#182027]/12 bg-white px-3 py-2 text-sm font-semibold transition hover:border-[#eb5954] hover:text-[#eb5954]"
+                    >
+                      {item.label}
+                    </a>
+                  ))}
                 </div>
               </section>
             </aside>
