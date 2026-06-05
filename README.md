@@ -4,9 +4,15 @@ HumanBits is an anonymous emotional dataset for the small human moments people r
 
 The product is **Human Echo**: aggregate emotional reflections that answer the question people care about most: "Am I the only one?"
 
-The current viral launch experiment is **لو قرأها**:
+The current viral launch experiment is **If They Read It**:
 
-> لو كنت متأكدًا أن هذا الشخص سيقرأ رسالتك ولن يستطيع الرد، ماذا ستكتب؟
+> If you were 100% sure this person would read your message and could not reply, what would you write?
+
+## Product blueprint
+
+The full product, architecture, growth, privacy, AI, monetization, and investor roadmap lives in:
+
+[HumanBits Product Blueprint](docs/HUMANBITS_BLUEPRINT.md)
 
 ## Stack
 
@@ -14,7 +20,10 @@ The current viral launch experiment is **لو قرأها**:
 - React
 - TypeScript
 - Tailwind CSS
-- Ready for Vercel
+- Firebase Auth
+- Supabase Realtime-ready
+- OpenAI Responses API-ready
+- Vercel
 
 ## Local development
 
@@ -27,10 +36,10 @@ Open `http://localhost:3000`.
 
 ## MVP scope
 
-- Guest-friendly experiment viewer
+- Guest-friendly experience viewer
 - Interactive reaction buttons
 - Firebase Google sign-in
-- Supabase-ready live experiment rooms
+- Supabase-ready live rooms
 - OpenAI-backed sentiment API with a safe fallback when `OPENAI_API_KEY` is missing
 - Echo Cards for shareable aggregate insights
 - Human Maps for anonymous emotional trends
@@ -44,11 +53,3 @@ Open `http://localhost:3000`.
 Copy `.env.example` to `.env.local` for local development. Add the same variables in Vercel project settings.
 
 Firebase identifiers are public client config. Keep `OPENAI_API_KEY` server-only and do not expose it with a `NEXT_PUBLIC_` prefix.
-
-## Later
-
-- Supabase tables for durable echoes, experiments, and consent
-- Creator/admin dashboards with real aggregate emotional maps
-- Share-image generation for Echo Cards
-- Personal archive and one-year reflection reminders
-- Real support accounts for Buy Me a Coffee, Ko-fi, or Patreon
