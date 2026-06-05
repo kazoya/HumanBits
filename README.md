@@ -1,8 +1,12 @@
 # HumanBits
 
-HumanBits is a playful MVP for tiny human experiments: quick prompts, anonymous reactions, creator insights, and a light AI-style reaction analyzer.
+HumanBits is an anonymous emotional dataset for the small human moments people rarely say out loud.
 
-The first iconic experiment is **عشر قروش**: "Would you give ten qirsh to someone in need today?"
+The product is **Human Echo**: aggregate emotional reflections that answer the question people care about most: "Am I the only one?"
+
+The current viral launch experiment is **لو قرأها**:
+
+> لو كنت متأكدًا أن هذا الشخص سيقرأ رسالتك ولن يستطيع الرد، ماذا ستكتب؟
 
 ## Stack
 
@@ -28,8 +32,10 @@ Open `http://localhost:3000`.
 - Firebase Google sign-in
 - Supabase-ready live experiment rooms
 - OpenAI-backed sentiment API with a safe fallback when `OPENAI_API_KEY` is missing
-- Creator experiment cards
-- Basic admin analytics preview
+- Echo Cards for shareable aggregate insights
+- Human Maps for anonymous emotional trends
+- Time Machine concept for returning to past reflections
+- Dataset pulse metrics
 - Anonymous-use and consent messaging
 - Local visual asset for the product interface
 
@@ -41,6 +47,8 @@ Firebase identifiers are public client config. Keep `OPENAI_API_KEY` server-only
 
 ## Later
 
-- Supabase tables for durable experiments and reactions
-- Creator/admin dashboards with real aggregate queries
+- Supabase tables for durable echoes, experiments, and consent
+- Creator/admin dashboards with real aggregate emotional maps
+- Share-image generation for Echo Cards
+- Personal archive and one-year reflection reminders
 - Real support accounts for Buy Me a Coffee, Ko-fi, or Patreon
