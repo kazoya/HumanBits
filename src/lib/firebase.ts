@@ -2,8 +2,9 @@ import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 import {
   getAuth,
+  getRedirectResult,
   GoogleAuthProvider,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
   type Auth,
   type User,
@@ -60,11 +61,21 @@ export function getFirebaseAnalytics() {
   return analyticsPromise;
 }
 
-export async function signInWithGoogle(): Promise<User> {
+function getGoogleProvider() {
   const provider = new GoogleAuthProvider();
+  provider.addScope("email");
+  provider.addScope("profile");
   provider.setCustomParameters({ prompt: "select_account" });
-  const result = await signInWithPopup(getFirebaseAuth(), provider);
-  return result.user;
+  return provider;
+}
+
+export async function signInWithGoogle() {
+  await signInWithRedirect(getFirebaseAuth(), getGoogleProvider());
+}
+
+export async function getGoogleRedirectUser(): Promise<User | null> {
+  const result = await getRedirectResult(getFirebaseAuth());
+  return result?.user ?? null;
 }
 
 export async function signOutOfGoogle() {

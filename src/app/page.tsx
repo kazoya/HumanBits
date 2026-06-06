@@ -7,6 +7,7 @@ import type { User } from "firebase/auth";
 import {
   getFirebaseAnalytics,
   getFirebaseAuth,
+  getGoogleRedirectUser,
   hasFirebaseConfig,
   signInWithGoogle,
   signOutOfGoogle,
@@ -261,6 +262,27 @@ const supportLinks = [
   },
 ];
 
+function formatAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (
+    message.includes("CONFIGURATION_NOT_FOUND") ||
+    message.includes("configuration-not-found")
+  ) {
+    return "Firebase Auth is not fully configured. Enable Authentication, enable Google provider, and add human-bits.vercel.app to Authorized domains.";
+  }
+
+  if (message.includes("popup-blocked")) {
+    return "The browser blocked the Google popup. Redirect sign-in is now enabled; please try again.";
+  }
+
+  if (message.includes("unauthorized-domain")) {
+    return "This domain is not authorized in Firebase Auth. Add human-bits.vercel.app in Firebase Authentication settings.";
+  }
+
+  return message;
+}
+
 export default function Home() {
   const [language, setLanguage] = useState<Language>("ar");
   const [theme, setTheme] = useState<Theme>("light");
@@ -296,6 +318,13 @@ export default function Home() {
       setUser(currentUser),
     );
     void getFirebaseAnalytics();
+    void getGoogleRedirectUser()
+      .then((redirectUser) => {
+        if (redirectUser) {
+          setUser(redirectUser);
+        }
+      })
+      .catch((error) => setAuthError(formatAuthError(error)));
 
     return unsubscribe;
   }, [isFirebaseReady]);
@@ -346,7 +375,7 @@ export default function Home() {
 
       await signInWithGoogle();
     } catch (error) {
-      setAuthError(error instanceof Error ? error.message : "Google sign-in failed.");
+      setAuthError(formatAuthError(error));
     }
   }
 
